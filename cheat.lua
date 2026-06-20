@@ -230,7 +230,7 @@ end
 createButton("Fly", 1, true, toggleFly)
 
 -- 2. SPIN
-local spinSpeed = 150
+local spinSpeed = 300
 local function toggleSpin(state)
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
