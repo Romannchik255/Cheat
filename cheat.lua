@@ -2,29 +2,36 @@
     ================================================
       SpeedSpin GUI — LocalScript для твоего плейса
       Место: StarterPlayerScripts
-      
+
       Функции:
         [Speed]      — WalkSpeed 56 (350% от базовых 16)
         [Spin+Knock] — Вращение; тебя не откидывает,
                        других игроков отбрасывает
-        
+
       RightShift — скрыть/показать GUI
+
+      ФИКС "стратосферы":
+        Heartbeat обнуляет AssemblyLinearVelocity
+        после каждого физического шага → никакой
+        коллизионный импульс (ни XZ, ни Y) не может
+        тебя сдвинуть пока крутишься.
     ================================================
 ]]
 
-local Players           = game:GetService("Players")
-local UserInputService  = game:GetService("UserInputService")
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 
 -- ================================================
 -- НАСТРОЙКИ (меняй здесь)
 -- ================================================
-local SPEED_VALUE  = 56    -- 350% от 16 (16 × 3.5 = 56). Хочешь другое — замени.
-local SPIN_SPEED   = 300   -- Угловая скорость вращения
-local KNOCK_FORCE  = 90    -- Горизонтальная сила отбрасывания
-local KNOCK_UP     = 30    -- Вертикальная сила отбрасывания (подбрасывает вверх)
-local KNOCK_CD     = 0.35  -- Кулдаун knockback на игрока (сек)
+local SPEED_VALUE = 56     -- 350% от базовых 16 (16 × 3.5)
+local SPIN_SPEED  = 300    -- Угловая скорость вращения
+local KNOCK_FORCE = 90     -- Горизонтальная сила отбрасывания
+local KNOCK_UP    = 30     -- Вертикальная сила отбрасывания
+local KNOCK_CD    = 0.35   -- Кулдаун knockback на одного игрока (сек)
 
 -- ================================================
 -- ЦВЕТА
@@ -37,51 +44,49 @@ local C_ON     = Color3.fromRGB(0, 255, 0)
 -- ================================================
 -- GUI
 -- ================================================
--- Удаляем старый если есть
 local pgui = player:WaitForChild("PlayerGui")
 if pgui:FindFirstChild("SpeedSpinGui") then
     pgui.SpeedSpinGui:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SpeedSpinGui"
+screenGui.Name         = "SpeedSpinGui"
 screenGui.ResetOnSpawn = false
-screenGui.Parent = pgui
+screenGui.Parent       = pgui
 
--- Главное окно
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 210, 0, 170)
-frame.Position = UDim2.new(0, 20, 0.5, -85)
+frame.Size             = UDim2.new(0, 210, 0, 170)
+frame.Position         = UDim2.new(0, 20, 0.5, -85)
 frame.BackgroundColor3 = C_BG
-frame.BorderSizePixel = 3
-frame.BorderColor3 = C_BORDER
-frame.Parent = screenGui
+frame.BorderSizePixel  = 3
+frame.BorderColor3     = C_BORDER
+frame.Parent           = screenGui
 
 -- Заголовок
 local titleCell = Instance.new("Frame")
-titleCell.Size = UDim2.new(1, 0, 0, 42)
+titleCell.Size             = UDim2.new(1, 0, 0, 42)
 titleCell.BackgroundColor3 = C_BG
-titleCell.BorderSizePixel = 1
-titleCell.BorderColor3 = C_BORDER
-titleCell.Parent = frame
+titleCell.BorderSizePixel  = 1
+titleCell.BorderColor3     = C_BORDER
+titleCell.Parent           = frame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.Size               = UDim2.new(1, 0, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SpeedSpin"
-titleLabel.TextColor3 = C_TEXT
-titleLabel.TextSize = 24
-titleLabel.Font = Enum.Font.Bodoni
-titleLabel.Parent = titleCell
+titleLabel.Text               = "SpeedSpin"
+titleLabel.TextColor3         = C_TEXT
+titleLabel.TextSize           = 24
+titleLabel.Font               = Enum.Font.Bodoni
+titleLabel.Parent             = titleCell
 
 -- Перетаскивание окна
 local dragging, dragInput, dragStart, startPos
 frame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or
        input.UserInputType == Enum.UserInputType.Touch then
-        dragging   = true
-        dragStart  = input.Position
-        startPos   = frame.Position
+        dragging  = true
+        dragStart = input.Position
+        startPos  = frame.Position
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
@@ -105,33 +110,33 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Создание кнопки-переключателя
+-- Кнопка-переключатель
 local function makeToggleButton(labelText, yOffset)
     local cell = Instance.new("Frame")
-    cell.Size = UDim2.new(1, 0, 0, 48)
-    cell.Position = UDim2.new(0, 0, 0, yOffset)
+    cell.Size             = UDim2.new(1, 0, 0, 48)
+    cell.Position         = UDim2.new(0, 0, 0, yOffset)
     cell.BackgroundColor3 = C_BG
-    cell.BorderSizePixel = 1
-    cell.BorderColor3 = C_BORDER
-    cell.Parent = frame
+    cell.BorderSizePixel  = 1
+    cell.BorderColor3     = C_BORDER
+    cell.Parent           = frame
 
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.Size                = UDim2.new(1, 0, 1, 0)
     btn.BackgroundTransparency = 1
-    btn.Text = labelText
-    btn.TextColor3 = C_TEXT
-    btn.TextSize = 17
-    btn.Font = Enum.Font.SourceSansBold
-    btn.Parent = cell
+    btn.Text                = labelText
+    btn.TextColor3          = C_TEXT
+    btn.TextSize            = 17
+    btn.Font                = Enum.Font.SourceSansBold
+    btn.Parent              = cell
 
     local toggled = false
-    return btn, function()
-        return toggled
-    end, function(newState)
-        toggled = (newState ~= nil) and newState or (not toggled)
-        btn.TextColor3 = toggled and C_ON or C_TEXT
-        return toggled
-    end
+    return btn,
+        function() return toggled end,
+        function(newState)
+            toggled = (newState ~= nil) and newState or (not toggled)
+            btn.TextColor3 = toggled and C_ON or C_TEXT
+            return toggled
+        end
 end
 
 -- ================================================
@@ -147,24 +152,27 @@ local function applySpeed(char)
 end
 
 speedBtn.MouseButton1Click:Connect(function()
-    local state = setSpeed()
+    setSpeed()
     applySpeed(player.Character)
 end)
 
 -- ================================================
--- ФУНКЦИЯ 2: SPIN + KNOCKBACK (ФИКС «гаити»)
+-- ФУНКЦИЯ 2: SPIN + KNOCKBACK
 --
--- Проблема: BodyAngularVelocity не защищает от
---           линейного отлёта при столкновении.
--- Решение:
---   • SpinStabilizer (BodyVelocity, MaxForce XZ 9e9)
---     держит горизонтальную скорость = 0 → тебя
---     не откидывает.
---   • Touched → временный BodyVelocity на HRP
---     другого игрока → их отбрасывает.
+-- ПОЧЕМУ ПРЕДЫДУЩИЙ BodyVelocity НЕ ПОМОГ:
+--   MaxForce = (9e9, 0, 9e9) → Y = 0 → вертикальный
+--   импульс от коллизии не блокировался → стратосфера.
+--
+-- НОВЫЙ ПОДХОД — Heartbeat lock:
+--   После каждого физического тика Roblox вычисляет
+--   все силы и применяет к телу. Heartbeat стреляет
+--   сразу после этого. Мы сбрасываем
+--   AssemblyLinearVelocity = (0,0,0) напрямую, без
+--   "встречной силы" — просто убиваем любую скорость
+--   по всем трём осям. Следующий физический тик
+--   начинается с нуля → тебя ничто не двигает.
 -- ================================================
 local spinObj         = nil
-local spinStabilizer  = nil
 local spinConnections = {}
 
 local function cleanupSpin()
@@ -172,11 +180,10 @@ local function cleanupSpin()
         c:Disconnect()
     end
     spinConnections = {}
-
-    if spinObj        and spinObj.Parent        then spinObj:Destroy()        end
-    if spinStabilizer and spinStabilizer.Parent then spinStabilizer:Destroy() end
-    spinObj        = nil
-    spinStabilizer = nil
+    if spinObj and spinObj.Parent then
+        spinObj:Destroy()
+    end
+    spinObj = nil
 end
 
 local function activateSpin(char)
@@ -185,47 +192,47 @@ local function activateSpin(char)
 
     cleanupSpin()
 
-    -- Вращение
+    -- 1. Вращение
     spinObj = Instance.new("BodyAngularVelocity")
-    spinObj.Name          = "SpinHacks"
-    spinObj.MaxTorque     = Vector3.new(0, 9e9, 0)
+    spinObj.Name            = "SpinHacks"
+    spinObj.MaxTorque       = Vector3.new(0, 9e9, 0)
     spinObj.AngularVelocity = Vector3.new(0, SPIN_SPEED, 0)
-    spinObj.Parent        = hrp
+    spinObj.Parent          = hrp
 
-    -- Стабилизатор: не даёт тебя откинуть по XZ
-    spinStabilizer = Instance.new("BodyVelocity")
-    spinStabilizer.Name      = "SpinStabilizer"
-    spinStabilizer.MaxForce  = Vector3.new(9e9, 0, 9e9)
-    spinStabilizer.Velocity  = Vector3.new(0, 0, 0)
-    spinStabilizer.Parent    = hrp
+    -- 2. ФИКС СТРАТОСФЕРЫ:
+    --    Heartbeat сбрасывает линейную скорость в ноль
+    --    после каждого физического расчёта.
+    --    Никакой коллизионный импульс (XYZ) не выживет
+    --    до следующего кадра.
+    local lockConn = RunService.Heartbeat:Connect(function()
+        if hrp and hrp.Parent then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    table.insert(spinConnections, lockConn)
 
-    -- Knockback других игроков при касании
+    -- 3. Knockback других игроков при касании
     local debounce = {}
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             local conn = part.Touched:Connect(function(hit)
                 if not hit or not hit.Parent then return end
 
-                local hitChar   = hit.Parent
-                local hitPlayer = Players:GetPlayerFromCharacter(hitChar)
+                local hitPlayer = Players:GetPlayerFromCharacter(hit.Parent)
                 if not hitPlayer or hitPlayer == player then return end
-
-                local hitHRP = hitChar:FindFirstChild("HumanoidRootPart")
-                if not hitHRP then return end
                 if debounce[hitPlayer] then return end
+
+                local hitHRP = hit.Parent:FindFirstChild("HumanoidRootPart")
+                if not hitHRP then return end
 
                 debounce[hitPlayer] = true
 
-                -- Направление отбрасывания: от спиннера к жертве
+                -- Направление: от спиннера к жертве (только горизонталь)
                 local dir = hitHRP.Position - hrp.Position
                 dir = Vector3.new(dir.X, 0, dir.Z)
-                if dir.Magnitude > 0 then
-                    dir = dir.Unit
-                else
-                    dir = hrp.CFrame.LookVector
-                end
+                dir = dir.Magnitude > 0 and dir.Unit or hrp.CFrame.LookVector
 
-                -- Применяем кратковременный импульс
+                -- Кратковременный импульс на жертву
                 local kBV = Instance.new("BodyVelocity")
                 kBV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 kBV.Velocity = dir * KNOCK_FORCE + Vector3.new(0, KNOCK_UP, 0)
@@ -252,7 +259,7 @@ spinBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================
--- Скрыть/показать  →  RightShift
+-- RightShift — скрыть/показать GUI
 -- ================================================
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.RightShift then
@@ -261,20 +268,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ================================================
--- Автосброс при респавне
+-- Автовосстановление при респавне
 -- ================================================
 player.CharacterAdded:Connect(function(char)
     task.wait(0.5)
-
-    -- Скорость
-    if getSpeed() then
-        applySpeed(char)
-    end
-
-    -- Спин
-    if getSpin() then
-        activateSpin(char)
-    end
+    if getSpeed() then applySpeed(char) end
+    if getSpin()  then activateSpin(char) end
 end)
 
 print("[SpeedSpin] Загружен. RightShift — скрыть/показать.")
